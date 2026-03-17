@@ -12,6 +12,8 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components";
   <LinkCard title="On Image Deleted" href="#on-image-deleted" description="Listen to Azure Container Registry image deletion events" />
   <LinkCard title="On Image Pushed" href="#on-image-pushed" description="Listen to Azure Container Registry image push events" />
   <LinkCard title="On VM Deleted" href="#on-vm-deleted" description="Listen to Azure VM deletion events" />
+  <LinkCard title="On Service Bus Message Available" href="#on-service-bus-message-available" description="Triggers when messages are available in a Service Bus queue with no active consumers" />
+  <LinkCard title="On Service Bus Dead-Letter Available" href="#on-service-bus-dead-letter-available" description="Triggers when dead-letter messages are available in a Service Bus queue with no active consumers" />
 </CardGrid>
 
 ## Actions
@@ -19,6 +21,14 @@ import { CardGrid, LinkCard } from "@astrojs/starlight/components";
 <CardGrid>
   <LinkCard title="Create Virtual Machine" href="#create-virtual-machine" description="Creates a new Azure Virtual Machine with the specified configuration" />
   <LinkCard title="Delete Virtual Machine" href="#delete-virtual-machine" description="Deletes an existing Azure Virtual Machine" />
+  <LinkCard title="Create Service Bus Queue" href="#create-service-bus-queue" description="Creates a new Azure Service Bus queue in the specified namespace" />
+  <LinkCard title="Delete Service Bus Queue" href="#delete-service-bus-queue" description="Deletes an Azure Service Bus queue from the specified namespace" />
+  <LinkCard title="Get Service Bus Queue" href="#get-service-bus-queue" description="Retrieves details and metrics for an Azure Service Bus queue" />
+  <LinkCard title="Send Service Bus Message" href="#send-service-bus-message" description="Sends a message to an Azure Service Bus queue" />
+  <LinkCard title="Create Service Bus Topic" href="#create-service-bus-topic" description="Creates a new Azure Service Bus topic in the specified namespace" />
+  <LinkCard title="Delete Service Bus Topic" href="#delete-service-bus-topic" description="Deletes an Azure Service Bus topic from the specified namespace" />
+  <LinkCard title="Get Service Bus Topic" href="#get-service-bus-topic" description="Retrieves details and metrics for an Azure Service Bus topic" />
+  <LinkCard title="Publish Service Bus Message" href="#publish-service-bus-message" description="Publishes a message to an Azure Service Bus topic" />
 </CardGrid>
 
 ## Instructions
@@ -383,6 +393,301 @@ Returns the deleted VM information including:
   "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm",
   "name": "my-vm",
   "resourceGroup": "my-rg"
+}
+```
+
+<a id="on-service-bus-message-available"></a>
+
+## On Service Bus Message Available
+
+Triggers when messages are present in a Service Bus queue but no active consumers are receiving them.
+
+> **Note**: Requires an Azure Service Bus **Premium tier** namespace. Standard and Basic tiers do not support Event Grid integration.
+
+### Use Cases
+
+- **Autoscaling triggers**: Start worker VMs or containers when a queue depth increases
+- **Alerting workflows**: Notify on-call teams when messages pile up with no consumers
+- **Orchestration**: Kick off processing pipelines when new work arrives
+
+### How It Works
+
+Listens to `Microsoft.ServiceBus.ActiveMessagesAvailableWithNoListeners` events from Azure Event Grid. Azure fires this when messages arrive in a queue and no active receivers are consuming from it.
+
+The trigger provides metadata about which queue has messages waiting, but **does not deliver the actual message content**.
+
+### Configuration
+
+- **Resource Group** (optional): Filter to a specific resource group
+- **Namespace** (required): The Service Bus namespace to monitor
+- **Queue Name** (optional): Filter to a specific queue. Leave empty for all queues in the namespace.
+
+### Event Data
+
+```json
+{
+  "id": "96257b6d-17d3-49e2-8369-fb185b29e1b5",
+  "topic": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.ServiceBus/namespaces/my-ns",
+  "subject": "queues/my-queue",
+  "eventType": "Microsoft.ServiceBus.ActiveMessagesAvailableWithNoListeners",
+  "eventTime": "2026-03-16T10:00:00Z",
+  "data": {
+    "namespaceName": "my-ns.servicebus.windows.net",
+    "requestUri": "https://my-ns.servicebus.windows.net/my-queue/messages/head",
+    "entityType": "queue",
+    "queueName": "my-queue",
+    "deadLetterQueue": false
+  }
+}
+```
+
+<a id="on-service-bus-dead-letter-available"></a>
+
+## On Service Bus Dead-Letter Available
+
+Triggers when dead-letter messages are present in a Service Bus queue's dead-letter sub-queue but no active consumers are processing them.
+
+> **Note**: Requires an Azure Service Bus **Premium tier** namespace.
+
+### Use Cases
+
+- **Dead-letter monitoring**: Alert teams when messages fail processing
+- **Automated remediation**: Trigger reprocessing workflows when dead-letter messages accumulate
+- **Compliance**: Ensure dead-letter messages are reviewed within SLA
+
+### Configuration
+
+- **Resource Group** (optional): Filter to a specific resource group
+- **Namespace** (required): The Service Bus namespace to monitor
+- **Queue Name** (optional): Filter to a specific queue's dead-letter sub-queue
+
+### Event Data
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "topic": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.ServiceBus/namespaces/my-ns",
+  "subject": "queues/my-queue",
+  "eventType": "Microsoft.ServiceBus.DeadletterMessagesAvailableWithNoListeners",
+  "eventTime": "2026-03-16T10:00:00Z",
+  "data": {
+    "namespaceName": "my-ns.servicebus.windows.net",
+    "requestUri": "https://my-ns.servicebus.windows.net/my-queue/$deadletterqueue/messages/head",
+    "entityType": "queue",
+    "queueName": "my-queue",
+    "deadLetterQueue": true
+  }
+}
+```
+
+<a id="create-service-bus-queue"></a>
+
+## Create Service Bus Queue
+
+Creates a new queue in an Azure Service Bus namespace.
+
+### Configuration
+
+- **Resource Group**: The Azure resource group containing the namespace
+- **Namespace**: The Service Bus namespace
+- **Queue Name**: The name of the queue to create
+
+### Example Output
+
+```json
+{
+  "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.ServiceBus/namespaces/my-ns/queues/my-queue",
+  "name": "my-queue",
+  "namespaceName": "my-ns",
+  "resourceGroup": "my-rg"
+}
+```
+
+<a id="delete-service-bus-queue"></a>
+
+## Delete Service Bus Queue
+
+Deletes an existing queue from an Azure Service Bus namespace. If the queue does not exist, the operation succeeds (idempotent).
+
+### Configuration
+
+- **Resource Group**: The Azure resource group containing the namespace
+- **Namespace**: The Service Bus namespace
+- **Queue Name**: The name of the queue to delete
+
+### Example Output
+
+```json
+{
+  "name": "my-queue",
+  "namespaceName": "my-ns",
+  "resourceGroup": "my-rg",
+  "deleted": true
+}
+```
+
+<a id="get-service-bus-queue"></a>
+
+## Get Service Bus Queue
+
+Retrieves details and current metrics for an Azure Service Bus queue.
+
+### Configuration
+
+- **Resource Group**: The Azure resource group containing the namespace
+- **Namespace**: The Service Bus namespace
+- **Queue Name**: The name of the queue to retrieve
+
+### Example Output
+
+```json
+{
+  "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.ServiceBus/namespaces/my-ns/queues/my-queue",
+  "name": "my-queue",
+  "namespaceName": "my-ns",
+  "resourceGroup": "my-rg",
+  "properties": {
+    "messageCount": 42,
+    "activeMessageCount": 40,
+    "deadLetterMessageCount": 2,
+    "maxSizeInMegabytes": 1024,
+    "maxDeliveryCount": 10,
+    "status": "Active"
+  }
+}
+```
+
+<a id="send-service-bus-message"></a>
+
+## Send Service Bus Message
+
+Sends a message to an Azure Service Bus queue using Azure AD authentication (no connection strings required).
+
+### Configuration
+
+- **Namespace**: The Service Bus namespace
+- **Queue Name**: The name of the queue to send to
+- **Body**: The message body content
+- **Content Type** (optional): MIME type of the body (e.g., `application/json`)
+
+### Notes
+
+- Requires **Azure Service Bus Data Sender** role on the namespace
+- Authentication uses Azure AD OAuth2 — no SAS connection strings needed
+
+### Example Output
+
+```json
+{
+  "queue": "my-queue",
+  "namespaceName": "my-ns",
+  "sent": true
+}
+```
+
+<a id="create-service-bus-topic"></a>
+
+## Create Service Bus Topic
+
+Creates a new topic in an Azure Service Bus namespace.
+
+### Configuration
+
+- **Resource Group**: The Azure resource group containing the namespace
+- **Namespace**: The Service Bus namespace
+- **Topic Name**: The name of the topic to create
+
+### Example Output
+
+```json
+{
+  "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.ServiceBus/namespaces/my-ns/topics/my-topic",
+  "name": "my-topic",
+  "namespaceName": "my-ns",
+  "resourceGroup": "my-rg"
+}
+```
+
+<a id="delete-service-bus-topic"></a>
+
+## Delete Service Bus Topic
+
+Deletes an existing topic from an Azure Service Bus namespace, including all its subscriptions and rules.
+
+### Configuration
+
+- **Resource Group**: The Azure resource group containing the namespace
+- **Namespace**: The Service Bus namespace
+- **Topic Name**: The name of the topic to delete
+
+### Example Output
+
+```json
+{
+  "name": "my-topic",
+  "namespaceName": "my-ns",
+  "resourceGroup": "my-rg",
+  "deleted": true
+}
+```
+
+<a id="get-service-bus-topic"></a>
+
+## Get Service Bus Topic
+
+Retrieves details and current metrics for an Azure Service Bus topic.
+
+### Configuration
+
+- **Resource Group**: The Azure resource group containing the namespace
+- **Namespace**: The Service Bus namespace
+- **Topic Name**: The name of the topic to retrieve
+
+### Example Output
+
+```json
+{
+  "id": "/subscriptions/12345678-1234-1234-1234-123456789abc/resourceGroups/my-rg/providers/Microsoft.ServiceBus/namespaces/my-ns/topics/my-topic",
+  "name": "my-topic",
+  "namespaceName": "my-ns",
+  "resourceGroup": "my-rg",
+  "properties": {
+    "subscriptionCount": 3,
+    "sizeInBytes": 0,
+    "maxSizeInMegabytes": 1024,
+    "activeMessageCount": 0,
+    "deadLetterMessageCount": 0,
+    "status": "Active"
+  }
+}
+```
+
+<a id="publish-service-bus-message"></a>
+
+## Publish Service Bus Message
+
+Publishes a message to an Azure Service Bus topic. All active subscriptions receive a copy (fan-out).
+
+### Configuration
+
+- **Namespace**: The Service Bus namespace
+- **Topic Name**: The name of the topic to publish to
+- **Body**: The message body content
+- **Content Type** (optional): MIME type of the body (e.g., `application/json`)
+
+### Notes
+
+- Requires **Azure Service Bus Data Sender** role on the namespace
+- Authentication uses Azure AD OAuth2 — no SAS connection strings needed
+- Message is routed to all matching topic subscriptions
+
+### Example Output
+
+```json
+{
+  "topic": "my-topic",
+  "namespaceName": "my-ns",
+  "published": true
 }
 ```
 

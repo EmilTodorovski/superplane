@@ -64,6 +64,20 @@ func (c *armClient) bearerToken(ctx context.Context) (string, error) {
 	return token.Token, nil
 }
 
+// serviceBusToken obtains an OAuth2 token for the Azure Service Bus data plane.
+func (c *armClient) serviceBusToken(ctx context.Context) (string, error) {
+	if c.tokenFunc != nil {
+		return c.tokenFunc(ctx)
+	}
+	token, err := c.credential.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://servicebus.azure.net/.default"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get Service Bus token: %w", err)
+	}
+	return token.Token, nil
+}
+
 func (c *armClient) getBaseURL() string {
 	if c.baseURL != "" {
 		return c.baseURL

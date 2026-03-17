@@ -13,11 +13,19 @@ import (
 // AzureWebhookConfiguration defines how a webhook should be configured for Azure triggers.
 type AzureWebhookConfiguration struct {
 	EventTypes    []string `json:"eventTypes" mapstructure:"eventTypes"`
-	ResourceType  string   `json:"resourceType" mapstructure:"resourceType"`
+	ResourceType  string   `json:"resourceType,omitempty" mapstructure:"resourceType"`
 	ResourceGroup string   `json:"resourceGroup,omitempty" mapstructure:"resourceGroup"`
+<<<<<<< Updated upstream
 	// Scope is an optional ARM resource ID to use as the Event Grid subscription scope.
 	// When set, it overrides the default subscription-level scope.
 	Scope string `json:"scope,omitempty" mapstructure:"scope"`
+=======
+	// TopicContains is used for services (e.g. Service Bus) where the Event Grid
+	// "topic" field (not "subject") carries the resource identity. When set, an
+	// advanced StringContains filter on the "topic" field is added so that only
+	// events from the specified namespace are delivered.
+	TopicContains string `json:"topicContains,omitempty" mapstructure:"topicContains"`
+>>>>>>> Stashed changes
 }
 
 // AzureWebhookHandler manages webhook lifecycle for Azure integration triggers.
@@ -82,14 +90,21 @@ func (h *AzureWebhookHandler) Setup(ctx core.WebhookHandlerContext) (any, error)
 	}
 
 	// Build advanced filters to reduce noise at the Azure level.
-	// Filter by subject containing the resource type so Azure only delivers
-	// events for the resource type we care about (e.g., virtualMachines).
+	// ResourceType filters by subject (works for VM/resource events where subject is the full ARM ID).
+	// TopicContains filters by the "topic" field (used for Service Bus where topic = namespace ARM ID).
 	var advancedFilters []map[string]any
 	if config.ResourceType != "" {
 		advancedFilters = append(advancedFilters, map[string]any{
 			"operatorType": "StringContains",
 			"key":          "subject",
 			"values":       []string{config.ResourceType},
+		})
+	}
+	if config.TopicContains != "" {
+		advancedFilters = append(advancedFilters, map[string]any{
+			"operatorType": "StringContains",
+			"key":          "topic",
+			"values":       []string{config.TopicContains},
 		})
 	}
 
@@ -181,7 +196,11 @@ func (h *AzureWebhookHandler) CompareConfig(a, b any) (bool, error) {
 		return false, nil
 	}
 
+<<<<<<< Updated upstream
 	if left.Scope != right.Scope {
+=======
+	if left.TopicContains != right.TopicContains {
+>>>>>>> Stashed changes
 		return false, nil
 	}
 
@@ -227,10 +246,13 @@ func decodeAzureWebhookConfiguration(raw any) (AzureWebhookConfiguration, error)
 		return AzureWebhookConfiguration{}, fmt.Errorf("failed to decode webhook configuration: %w", err)
 	}
 
+<<<<<<< Updated upstream
 	if config.ResourceType == "" && config.Scope == "" {
 		return AzureWebhookConfiguration{}, fmt.Errorf("resourceType is required when scope is not set")
 	}
 
+=======
+>>>>>>> Stashed changes
 	if len(config.EventTypes) == 0 {
 		return AzureWebhookConfiguration{}, fmt.Errorf("eventTypes is required")
 	}

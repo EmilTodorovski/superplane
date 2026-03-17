@@ -13,12 +13,24 @@ import (
 )
 
 const (
+<<<<<<< Updated upstream
 	ResourceTypeResourceGroupDropdown     = "azure.resourceGroup"
 	ResourceTypeResourceGroupLocation     = "azure.resourceGroupLocation"
 	ResourceTypeVMSizeDropdown            = "azure.vmSize"
 	ResourceTypeVirtualNetworkDropdown    = "azure.virtualNetwork"
 	ResourceTypeSubnetDropdown            = "azure.subnet"
 	ResourceTypeContainerRegistryDropdown = "azure.containerRegistry"
+=======
+	ResourceTypeResourceGroupDropdown  = "azure.resourceGroup"
+	ResourceTypeResourceGroupLocation  = "azure.resourceGroupLocation"
+	ResourceTypeVMSizeDropdown         = "azure.vmSize"
+	ResourceTypeVirtualNetworkDropdown = "azure.virtualNetwork"
+	ResourceTypeSubnetDropdown         = "azure.subnet"
+
+	ResourceTypeServiceBusNamespace = "azure.servicebus.namespace"
+	ResourceTypeServiceBusQueue     = "azure.servicebus.queue"
+	ResourceTypeServiceBusTopic     = "azure.servicebus.topic"
+>>>>>>> Stashed changes
 )
 
 type armResourceGroup struct {
@@ -286,6 +298,188 @@ func (a *AzureIntegration) ListSubnets(ctx core.ListResourcesContext, resourceGr
 			Type: ResourceTypeSubnetDropdown,
 			Name: subnet.Name,
 			ID:   id,
+		})
+	}
+
+	sort.Slice(resources, func(i, j int) bool {
+		return strings.ToLower(resources[i].Name) < strings.ToLower(resources[j].Name)
+	})
+
+	return resources, nil
+}
+
+// ListServiceBusNamespaces lists Service Bus namespaces, optionally filtered by resource group.
+func (a *AzureIntegration) ListServiceBusNamespaces(ctx core.ListResourcesContext, resourceGroup string) ([]core.IntegrationResource, error) {
+	ctx.Logger.Infof("listing Azure Service Bus namespaces for resourceGroup=%s", resourceGroup)
+
+	provider, err := a.ensureProvider(ctx.Integration)
+	if err != nil {
+		return nil, err
+	}
+
+	var listURL string
+	if resourceGroup != "" {
+		rg := azureResourceName(resourceGroup)
+		listURL = fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ServiceBus/namespaces?api-version=%s",
+			armBaseURL, provider.GetSubscriptionID(), rg, armAPIVersionServiceBus)
+	} else {
+		listURL = fmt.Sprintf("%s/subscriptions/%s/providers/Microsoft.ServiceBus/namespaces?api-version=%s",
+			armBaseURL, provider.GetSubscriptionID(), armAPIVersionServiceBus)
+	}
+
+	items, err := provider.getClient().listAll(context.Background(), listURL)
+	if err != nil {
+		if isARMNotFound(err) {
+			return []core.IntegrationResource{}, nil
+		}
+		return nil, fmt.Errorf("failed to list Service Bus namespaces: %w", err)
+	}
+
+	resources := []core.IntegrationResource{}
+	for _, raw := range items {
+		var ns armServiceBusNamespace
+		if err := json.Unmarshal(raw, &ns); err != nil || ns.Name == "" {
+			continue
+		}
+
+		id := ns.Name
+		if ns.ID != "" {
+			id = ns.ID
+		}
+
+		resources = append(resources, core.IntegrationResource{
+			Type: ResourceTypeServiceBusNamespace,
+			Name: ns.Name,
+			ID:   id,
+		})
+	}
+
+	sort.Slice(resources, func(i, j int) bool {
+		return strings.ToLower(resources[i].Name) < strings.ToLower(resources[j].Name)
+	})
+
+	return resources, nil
+}
+
+// ListServiceBusQueues lists queues in a Service Bus namespace.
+func (a *AzureIntegration) ListServiceBusQueues(ctx core.ListResourcesContext, resourceGroup, namespaceName string) ([]core.IntegrationResource, error) {
+	ctx.Logger.Infof("listing Azure Service Bus queues for namespace=%s", namespaceName)
+
+	if namespaceName == "" {
+		return []core.IntegrationResource{}, nil
+	}
+
+	provider, err := a.ensureProvider(ctx.Integration)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := azureResourceName(namespaceName)
+	rg := azureResourceName(resourceGroup)
+
+	// If resourceGroup is not provided, try to find the namespace across all RGs
+	if rg == "" {
+		namespaces, err := a.ListServiceBusNamespaces(ctx, "")
+		if err != nil {
+			return []core.IntegrationResource{}, nil
+		}
+		for _, n := range namespaces {
+			if strings.EqualFold(path.Base(n.ID), ns) || strings.EqualFold(n.Name, ns) {
+				rg = extractResourceGroup(n.ID)
+				break
+			}
+		}
+	}
+
+	if rg == "" {
+		return []core.IntegrationResource{}, nil
+	}
+
+	listURL := provider.getClient().serviceBusARMListURL(provider.GetSubscriptionID(), rg, ns, "queues")
+
+	items, err := provider.getClient().listAll(context.Background(), listURL)
+	if err != nil {
+		if isARMNotFound(err) {
+			return []core.IntegrationResource{}, nil
+		}
+		return nil, fmt.Errorf("failed to list Service Bus queues: %w", err)
+	}
+
+	resources := []core.IntegrationResource{}
+	for _, raw := range items {
+		var q armServiceBusQueue
+		if err := json.Unmarshal(raw, &q); err != nil || q.Name == "" {
+			continue
+		}
+
+		resources = append(resources, core.IntegrationResource{
+			Type: ResourceTypeServiceBusQueue,
+			Name: q.Name,
+			ID:   q.ID,
+		})
+	}
+
+	sort.Slice(resources, func(i, j int) bool {
+		return strings.ToLower(resources[i].Name) < strings.ToLower(resources[j].Name)
+	})
+
+	return resources, nil
+}
+
+// ListServiceBusTopics lists topics in a Service Bus namespace.
+func (a *AzureIntegration) ListServiceBusTopics(ctx core.ListResourcesContext, resourceGroup, namespaceName string) ([]core.IntegrationResource, error) {
+	ctx.Logger.Infof("listing Azure Service Bus topics for namespace=%s", namespaceName)
+
+	if namespaceName == "" {
+		return []core.IntegrationResource{}, nil
+	}
+
+	provider, err := a.ensureProvider(ctx.Integration)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := azureResourceName(namespaceName)
+	rg := azureResourceName(resourceGroup)
+
+	if rg == "" {
+		namespaces, err := a.ListServiceBusNamespaces(ctx, "")
+		if err != nil {
+			return []core.IntegrationResource{}, nil
+		}
+		for _, n := range namespaces {
+			if strings.EqualFold(path.Base(n.ID), ns) || strings.EqualFold(n.Name, ns) {
+				rg = extractResourceGroup(n.ID)
+				break
+			}
+		}
+	}
+
+	if rg == "" {
+		return []core.IntegrationResource{}, nil
+	}
+
+	listURL := provider.getClient().serviceBusARMListURL(provider.GetSubscriptionID(), rg, ns, "topics")
+
+	items, err := provider.getClient().listAll(context.Background(), listURL)
+	if err != nil {
+		if isARMNotFound(err) {
+			return []core.IntegrationResource{}, nil
+		}
+		return nil, fmt.Errorf("failed to list Service Bus topics: %w", err)
+	}
+
+	resources := []core.IntegrationResource{}
+	for _, raw := range items {
+		var t armServiceBusTopic
+		if err := json.Unmarshal(raw, &t); err != nil || t.Name == "" {
+			continue
+		}
+
+		resources = append(resources, core.IntegrationResource{
+			Type: ResourceTypeServiceBusTopic,
+			Name: t.Name,
+			ID:   t.ID,
 		})
 	}
 

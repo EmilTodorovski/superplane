@@ -112,14 +112,29 @@ func (a *AzureIntegration) Components() []core.Component {
 	return []core.Component{
 		&CreateVMComponent{integration: a},
 		&DeleteVMComponent{integration: a},
+		// Service Bus — Queues
+		&CreateServiceBusQueueComponent{integration: a},
+		&DeleteServiceBusQueueComponent{integration: a},
+		&GetServiceBusQueueComponent{integration: a},
+		&SendServiceBusMessageComponent{integration: a},
+		// Service Bus — Topics
+		&CreateServiceBusTopicComponent{integration: a},
+		&DeleteServiceBusTopicComponent{integration: a},
+		&GetServiceBusTopicComponent{integration: a},
+		&PublishServiceBusMessageComponent{integration: a},
 	}
 }
 
 func (a *AzureIntegration) Triggers() []core.Trigger {
 	return []core.Trigger{
 		&OnVMDeleted{integration: a},
+<<<<<<< Updated upstream
 		&OnImagePushed{integration: a},
 		&OnImageDeleted{integration: a},
+=======
+		&OnServiceBusMessageAvailable{integration: a},
+		&OnServiceBusDeadLetterAvailable{integration: a},
+>>>>>>> Stashed changes
 	}
 }
 
@@ -202,6 +217,7 @@ Assign Azure RBAC roles to your app registration at the subscription or resource
 - **Virtual Machine Contributor** – For VM management
 - **Network Contributor** – For network resource management
 - **EventGrid Contributor** – For Event Grid subscriptions
+- **Azure Service Bus Data Owner** – For Service Bus queue/topic management and message sending
 
 **3. Complete Setup**
 
@@ -250,8 +266,25 @@ func (a *AzureIntegration) ListResources(resourceType string, ctx core.ListResou
 			firstNonEmptyParameter(ctx.Parameters, "virtualNetworkName", "virtualNetwork", "vnetName"),
 		)
 
+<<<<<<< Updated upstream
 	case ResourceTypeContainerRegistryDropdown:
 		return a.ListContainerRegistries(ctx, firstNonEmptyParameter(ctx.Parameters, "resourceGroup"))
+=======
+	case ResourceTypeServiceBusNamespace:
+		return a.ListServiceBusNamespaces(ctx, firstNonEmptyParameter(ctx.Parameters, "resourceGroup"))
+
+	case ResourceTypeServiceBusQueue:
+		return a.ListServiceBusQueues(ctx,
+			firstNonEmptyParameter(ctx.Parameters, "resourceGroup"),
+			firstNonEmptyParameter(ctx.Parameters, "namespaceName"),
+		)
+
+	case ResourceTypeServiceBusTopic:
+		return a.ListServiceBusTopics(ctx,
+			firstNonEmptyParameter(ctx.Parameters, "resourceGroup"),
+			firstNonEmptyParameter(ctx.Parameters, "namespaceName"),
+		)
+>>>>>>> Stashed changes
 
 	case "resourceGroup", "virtualNetwork", "subnet":
 		return []core.IntegrationResource{}, nil
